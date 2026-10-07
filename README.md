@@ -1,136 +1,148 @@
 Option Compare Database
 Option Explicit
 
-Public Sub CreateAll()
+Public Sub СоздатьВсё()
     Dim db As DAO.Database
     Dim rel As DAO.Relation
     Dim q As Variant
     Set db = CurrentDb
 
-    ' ---------- CLEANUP ----------
+    ' ---------- УДАЛЕНИЕ СТАРОГО (русского и английского) ----------
     On Error Resume Next
-    For Each q In Array("Phones1", "ClientAddresses2", "Birthdays3", _
-        "EmployeeBirthdays4", "BirthdaysByMonth5", "PhoneList6", _
-        "CompletedOrders7", "AmountOver8", "AmountInRange9", "Managers10")
+    For Each q In Array( _
+        "Phones1", "ClientAddresses2", "Birthdays3", "EmployeeBirthdays4", _
+        "BirthdaysByMonth5", "PhoneList6", "CompletedOrders7", _
+        "AmountOver8", "AmountInRange9", "Managers10", _
+        "Телефоны1", "Адреса клиентов2", "Дни рождения3", _
+        "Дни рождения сотрудников4", "Дни рождения по месяцам5", "Список телефонов6", _
+        "Выполненные заказы7", "Сумма заказа более8", "Сумма заказа в пределе9", "Менеджеры10")
         db.QueryDefs.Delete q
     Next q
+
     db.Relations.Delete "EmployeesOrders"
     db.Relations.Delete "ClientsOrders"
+    db.Relations.Delete "СотрудникиЗаказы"
+    db.Relations.Delete "КлиентыЗаказы"
+
     db.Execute "DROP TABLE Orders"
     db.Execute "DROP TABLE Clients"
     db.Execute "DROP TABLE Employees"
+    db.Execute "DROP TABLE Заказы"
+    db.Execute "DROP TABLE Клиенты"
+    db.Execute "DROP TABLE Сотрудники"
     On Error GoTo 0
 
-    ' ---------- TABLES ----------
-    db.Execute "CREATE TABLE Employees (" & _
-        "[EmployeeID] COUNTER PRIMARY KEY, " & _
-        "[LastName] TEXT(50), [FirstName] TEXT(50), [MiddleName] TEXT(50), " & _
-        "[Position] TEXT(50), [Phone] TEXT(20), [Address] TEXT(100), " & _
-        "[Birthday] DATETIME)", dbFailOnError
+    ' ---------- ТАБЛИЦЫ ----------
+    db.Execute "CREATE TABLE Сотрудники (" & _
+        "[Код сотрудника] COUNTER PRIMARY KEY, " & _
+        "[Фамилия] TEXT(50), [Имя] TEXT(50), [Отчество] TEXT(50), " & _
+        "[Должность] TEXT(50), [Телефон] TEXT(20), [Адрес] TEXT(100), " & _
+        "[Дата рождения] DATETIME)", dbFailOnError
 
-    db.Execute "CREATE TABLE Clients (" & _
-        "[ClientID] COUNTER PRIMARY KEY, " & _
-        "[CompanyName] TEXT(100), [Address] TEXT(100), [Phone] TEXT(20), " & _
-        "[Fax] TEXT(20), [Email] TEXT(100), [Notes] MEMO)", dbFailOnError
+    db.Execute "CREATE TABLE Клиенты (" & _
+        "[Код клиента] COUNTER PRIMARY KEY, " & _
+        "[Название компании] TEXT(100), [Адрес] TEXT(100), [Телефон] TEXT(20), " & _
+        "[Факс] TEXT(20), [Эл_почта] TEXT(100), [Заметки] MEMO)", dbFailOnError
 
-    db.Execute "CREATE TABLE Orders (" & _
-        "[OrderID] COUNTER PRIMARY KEY, " & _
-        "[ClientID] LONG, [EmployeeID] LONG, " & _
-        "[OrderDate] DATETIME, [DueDate] DATETIME, " & _
-        "[Amount] CURRENCY, [Completed] YESNO)", dbFailOnError
+    db.Execute "CREATE TABLE Заказы (" & _
+        "[Код заказа] COUNTER PRIMARY KEY, " & _
+        "[Код клиента] LONG, [Код сотрудника] LONG, " & _
+        "[Дата размещения] DATETIME, [Дата исполнения] DATETIME, " & _
+        "[Сумма] CURRENCY, [Отметка о выполнении] YESNO)", dbFailOnError
 
-    ' ---------- RELATIONS ----------
-    Set rel = db.CreateRelation("EmployeesOrders", "Employees", "Orders", dbRelationUpdateCascade Or dbRelationDeleteCascade)
-    rel.Fields.Append rel.CreateField("EmployeeID")
-    rel.Fields("EmployeeID").ForeignName = "EmployeeID"
+    ' ---------- СВЯЗИ ----------
+    Set rel = db.CreateRelation("СотрудникиЗаказы", "Сотрудники", "Заказы", dbRelationUpdateCascade Or dbRelationDeleteCascade)
+    rel.Fields.Append rel.CreateField("Код сотрудника")
+    rel.Fields("Код сотрудника").ForeignName = "Код сотрудника"
     db.Relations.Append rel
 
-    Set rel = db.CreateRelation("ClientsOrders", "Clients", "Orders", dbRelationUpdateCascade Or dbRelationDeleteCascade)
-    rel.Fields.Append rel.CreateField("ClientID")
-    rel.Fields("ClientID").ForeignName = "ClientID"
+    Set rel = db.CreateRelation("КлиентыЗаказы", "Клиенты", "Заказы", dbRelationUpdateCascade Or dbRelationDeleteCascade)
+    rel.Fields.Append rel.CreateField("Код клиента")
+    rel.Fields("Код клиента").ForeignName = "Код клиента"
     db.Relations.Append rel
 
-    ' ---------- LOOKUPS ----------
-    SetFieldLookup db, "Orders", "EmployeeID", _
-        "SELECT [EmployeeID], [LastName] & ' ' & [FirstName] AS FN FROM Employees ORDER BY [LastName];"
-    SetFieldLookup db, "Orders", "ClientID", _
-        "SELECT [ClientID], [CompanyName] FROM Clients ORDER BY [CompanyName];"
+    ' ---------- ПОДСТАНОВКИ ----------
+    УстановитьПодстановку db, "Заказы", "Код сотрудника", _
+        "SELECT [Код сотрудника], [Фамилия] & ' ' & [Имя] AS ФИО FROM Сотрудники ORDER BY [Фамилия];"
+    УстановитьПодстановку db, "Заказы", "Код клиента", _
+        "SELECT [Код клиента], [Название компании] FROM Клиенты ORDER BY [Название компании];"
 
-    ' ---------- EMPLOYEES ----------
-    db.Execute "INSERT INTO Employees ([LastName],[FirstName],[MiddleName],[Position],[Phone],[Address],[Birthday]) VALUES ('Ivanov','Ivan','Ivanovich','Director','111-11-11','Lenina 1',#4/15/1985#)"
-    db.Execute "INSERT INTO Employees ([LastName],[FirstName],[MiddleName],[Position],[Phone],[Address],[Birthday]) VALUES ('Petrov','Petr','Petrovich','Economist','222-22-22','Pushkina 2',#5/20/1990#)"
-    db.Execute "INSERT INTO Employees ([LastName],[FirstName],[MiddleName],[Position],[Phone],[Address],[Birthday]) VALUES ('Sidorova','Anna','Sergeevna','Accountant','333-33-33','Gogolya 3',#4/3/1988#)"
-    db.Execute "INSERT INTO Employees ([LastName],[FirstName],[MiddleName],[Position],[Phone],[Address],[Birthday]) VALUES ('Kuznetsov','Dmitry','Alekseevich','Manager','444-44-44','Chekhova 4',#6/12/1975#)"
-    db.Execute "INSERT INTO Employees ([LastName],[FirstName],[MiddleName],[Position],[Phone],[Address],[Birthday]) VALUES ('Smirnova','Elena','Viktorovna','Manager','555-55-55','Tolstogo 5',#4/28/1992#)"
-    db.Execute "INSERT INTO Employees ([LastName],[FirstName],[MiddleName],[Position],[Phone],[Address],[Birthday]) VALUES ('Popov','Alexey','Nikolaevich','Economist','666-66-66','Dostoevskogo 6',#3/8/1980#)"
-    db.Execute "INSERT INTO Employees ([LastName],[FirstName],[MiddleName],[Position],[Phone],[Address],[Birthday]) VALUES ('Vasilyeva','Olga','Ivanovna','Accountant','777-77-77','Turgeneva 7',#5/15/1985#)"
-    db.Execute "INSERT INTO Employees ([LastName],[FirstName],[MiddleName],[Position],[Phone],[Address],[Birthday]) VALUES ('Sokolov','Andrey','Vladimirovich','Manager','888-88-88','Nekrasova 8',#7/22/1978#)"
-    db.Execute "INSERT INTO Employees ([LastName],[FirstName],[MiddleName],[Position],[Phone],[Address],[Birthday]) VALUES ('Mikhailova','Tatyana','Petrovna','Manager','999-99-99','Krylova 9',#4/10/1990#)"
-    db.Execute "INSERT INTO Employees ([LastName],[FirstName],[MiddleName],[Position],[Phone],[Address],[Birthday]) VALUES ('Fedorov','Sergey','Dmitrievich','Manager','000-00-00','Lermontova 10',#9/5/1982#)"
+    ' ---------- СОТРУДНИКИ ----------
+    db.Execute "INSERT INTO Сотрудники ([Фамилия],[Имя],[Отчество],[Должность],[Телефон],[Адрес],[Дата рождения]) VALUES ('Иванов','Иван','Иванович','директор','111-11-11','ул. Ленина 1',#4/15/1985#)"
+    db.Execute "INSERT INTO Сотрудники ([Фамилия],[Имя],[Отчество],[Должность],[Телефон],[Адрес],[Дата рождения]) VALUES ('Петров','Петр','Петрович','экономист','222-22-22','ул. Пушкина 2',#5/20/1990#)"
+    db.Execute "INSERT INTO Сотрудники ([Фамилия],[Имя],[Отчество],[Должность],[Телефон],[Адрес],[Дата рождения]) VALUES ('Сидорова','Анна','Сергеевна','бухгалтер','333-33-33','ул. Гоголя 3',#4/3/1988#)"
+    db.Execute "INSERT INTO Сотрудники ([Фамилия],[Имя],[Отчество],[Должность],[Телефон],[Адрес],[Дата рождения]) VALUES ('Кузнецов','Дмитрий','Алексеевич','менеджер','444-44-44','ул. Чехова 4',#6/12/1975#)"
+    db.Execute "INSERT INTO Сотрудники ([Фамилия],[Имя],[Отчество],[Должность],[Телефон],[Адрес],[Дата рождения]) VALUES ('Смирнова','Елена','Викторовна','менеджер','555-55-55','ул. Толстого 5',#4/28/1992#)"
+    db.Execute "INSERT INTO Сотрудники ([Фамилия],[Имя],[Отчество],[Должность],[Телефон],[Адрес],[Дата рождения]) VALUES ('Попов','Алексей','Николаевич','экономист','666-66-66','ул. Достоевского 6',#3/8/1980#)"
+    db.Execute "INSERT INTO Сотрудники ([Фамилия],[Имя],[Отчество],[Должность],[Телефон],[Адрес],[Дата рождения]) VALUES ('Васильева','Ольга','Ивановна','бухгалтер','777-77-77','ул. Тургенева 7',#5/15/1985#)"
+    db.Execute "INSERT INTO Сотрудники ([Фамилия],[Имя],[Отчество],[Должность],[Телефон],[Адрес],[Дата рождения]) VALUES ('Соколов','Андрей','Владимирович','менеджер','888-88-88','ул. Некрасова 8',#7/22/1978#)"
+    db.Execute "INSERT INTO Сотрудники ([Фамилия],[Имя],[Отчество],[Должность],[Телефон],[Адрес],[Дата рождения]) VALUES ('Михайлова','Татьяна','Петровна','менеджер','999-99-99','ул. Крылова 9',#4/10/1990#)"
+    db.Execute "INSERT INTO Сотрудники ([Фамилия],[Имя],[Отчество],[Должность],[Телефон],[Адрес],[Дата рождения]) VALUES ('Федоров','Сергей','Дмитриевич','менеджер','000-00-00','ул. Лермонтова 10',#9/5/1982#)"
 
-    ' ---------- CLIENTS ----------
-    db.Execute "INSERT INTO Clients ([CompanyName],[Address],[Phone],[Fax],[Email],[Notes]) VALUES ('Romashka LLC','Sadovaya 1','101-01-01','101-01-02','romashka@mail.ru','Regular')"
-    db.Execute "INSERT INTO Clients ([CompanyName],[Address],[Phone],[Fax],[Email],[Notes]) VALUES ('Vektor JSC','Lugovaya 2','202-02-02','202-02-03','vector@mail.ru','')"
-    db.Execute "INSERT INTO Clients ([CompanyName],[Address],[Phone],[Fax],[Email],[Notes]) VALUES ('Sidorov IE','Polevaya 3','303-03-03','','sidorov@mail.ru','')"
-    db.Execute "INSERT INTO Clients ([CompanyName],[Address],[Phone],[Fax],[Email],[Notes]) VALUES ('TechnoService LLC','Zavodskaya 4','404-04-04','404-04-05','tech@mail.ru','')"
-    db.Execute "INSERT INTO Clients ([CompanyName],[Address],[Phone],[Fax],[Email],[Notes]) VALUES ('Energia OJSC','Severnaya 5','505-05-05','505-05-06','energy@mail.ru','')"
-    db.Execute "INSERT INTO Clients ([CompanyName],[Address],[Phone],[Fax],[Email],[Notes]) VALUES ('StroyMaster LLC','Yuzhnaya 6','606-06-06','606-06-07','stroy@mail.ru','')"
-    db.Execute "INSERT INTO Clients ([CompanyName],[Address],[Phone],[Fax],[Email],[Notes]) VALUES ('Alfa JSC','Zapadnaya 7','707-07-07','707-07-08','alfa@mail.ru','')"
-    db.Execute "INSERT INTO Clients ([CompanyName],[Address],[Phone],[Fax],[Email],[Notes]) VALUES ('Gamma LLC','Vostochnaya 8','808-08-08','808-08-09','gamma@mail.ru','')"
-    db.Execute "INSERT INTO Clients ([CompanyName],[Address],[Phone],[Fax],[Email],[Notes]) VALUES ('Petrova IE','Tsentralnaya 9','909-09-09','','petrova@mail.ru','')"
-    db.Execute "INSERT INTO Clients ([CompanyName],[Address],[Phone],[Fax],[Email],[Notes]) VALUES ('Delta LLC','Shkolnaya 10','010-10-10','010-10-11','delta@mail.ru','')"
+    ' ---------- КЛИЕНТЫ ----------
+    db.Execute "INSERT INTO Клиенты ([Название компании],[Адрес],[Телефон],[Факс],[Эл_почта],[Заметки]) VALUES ('ООО Ромашка','ул. Садовая 1','101-01-01','101-01-02','romashka@mail.ru','Постоянный клиент')"
+    db.Execute "INSERT INTO Клиенты ([Название компании],[Адрес],[Телефон],[Факс],[Эл_почта],[Заметки]) VALUES ('ЗАО Вектор','ул. Луговая 2','202-02-02','202-02-03','vector@mail.ru','')"
+    db.Execute "INSERT INTO Клиенты ([Название компании],[Адрес],[Телефон],[Факс],[Эл_почта],[Заметки]) VALUES ('ИП Сидоров','ул. Полевая 3','303-03-03','','sidorov@mail.ru','')"
+    db.Execute "INSERT INTO Клиенты ([Название компании],[Адрес],[Телефон],[Факс],[Эл_почта],[Заметки]) VALUES ('ООО ТехноСервис','ул. Заводская 4','404-04-04','404-04-05','tech@mail.ru','')"
+    db.Execute "INSERT INTO Клиенты ([Название компании],[Адрес],[Телефон],[Факс],[Эл_почта],[Заметки]) VALUES ('ОАО Энергия','ул. Северная 5','505-05-05','505-05-06','energy@mail.ru','')"
+    db.Execute "INSERT INTO Клиенты ([Название компании],[Адрес],[Телефон],[Факс],[Эл_почта],[Заметки]) VALUES ('ООО СтройМастер','ул. Южная 6','606-06-06','606-06-07','stroy@mail.ru','')"
+    db.Execute "INSERT INTO Клиенты ([Название компании],[Адрес],[Телефон],[Факс],[Эл_почта],[Заметки]) VALUES ('ЗАО Альфа','ул. Западная 7','707-07-07','707-07-08','alfa@mail.ru','')"
+    db.Execute "INSERT INTO Клиенты ([Название компании],[Адрес],[Телефон],[Факс],[Эл_почта],[Заметки]) VALUES ('ООО Гамма','ул. Восточная 8','808-08-08','808-08-09','gamma@mail.ru','')"
+    db.Execute "INSERT INTO Клиенты ([Название компании],[Адрес],[Телефон],[Факс],[Эл_почта],[Заметки]) VALUES ('ИП Петрова','ул. Центральная 9','909-09-09','','petrova@mail.ru','')"
+    db.Execute "INSERT INTO Клиенты ([Название компании],[Адрес],[Телефон],[Факс],[Эл_почта],[Заметки]) VALUES ('ООО Дельта','ул. Школьная 10','010-10-10','010-10-11','delta@mail.ru','')"
 
-    ' ---------- ORDERS ----------
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (1,4,#1/10/2024#,#1/20/2024#,75000,True)"
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (2,5,#1/12/2024#,#1/25/2024#,35000,False)"
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (3,8,#1/15/2024#,#1/30/2024#,45000,True)"
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (4,9,#1/18/2024#,#2/1/2024#,85000,False)"
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (5,10,#1/20/2024#,#2/5/2024#,25000,True)"
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (6,4,#1/22/2024#,#2/10/2024#,60000,False)"
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (7,5,#1/25/2024#,#2/12/2024#,30000,True)"
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (8,8,#2/1/2024#,#2/15/2024#,90000,False)"
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (9,9,#2/3/2024#,#2/18/2024#,8000,True)"
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (10,10,#2/5/2024#,#2/20/2024#,33000,False)"
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (1,4,#2/10/2024#,#2/25/2024#,12000,True)"
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (2,5,#2/12/2024#,#2/28/2024#,55000,False)"
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (3,8,#2/15/2024#,#3/1/2024#,17000,True)"
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (4,9,#2/18/2024#,#3/5/2024#,29000,False)"
-    db.Execute "INSERT INTO Orders ([ClientID],[EmployeeID],[OrderDate],[DueDate],[Amount],[Completed]) VALUES (5,10,#2/20/2024#,#3/10/2024#,41000,True)"
+    ' ---------- ЗАКАЗЫ ----------
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (1,4,#1/10/2024#,#1/20/2024#,75000,True)"
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (2,5,#1/12/2024#,#1/25/2024#,35000,False)"
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (3,8,#1/15/2024#,#1/30/2024#,45000,True)"
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (4,9,#1/18/2024#,#2/1/2024#,85000,False)"
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (5,10,#1/20/2024#,#2/5/2024#,25000,True)"
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (6,4,#1/22/2024#,#2/10/2024#,60000,False)"
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (7,5,#1/25/2024#,#2/12/2024#,30000,True)"
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (8,8,#2/1/2024#,#2/15/2024#,90000,False)"
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (9,9,#2/3/2024#,#2/18/2024#,8000,True)"
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (10,10,#2/5/2024#,#2/20/2024#,33000,False)"
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (1,4,#2/10/2024#,#2/25/2024#,12000,True)"
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (2,5,#2/12/2024#,#2/28/2024#,55000,False)"
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (3,8,#2/15/2024#,#3/1/2024#,17000,True)"
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (4,9,#2/18/2024#,#3/5/2024#,29000,False)"
+    db.Execute "INSERT INTO Заказы ([Код клиента],[Код сотрудника],[Дата размещения],[Дата исполнения],[Сумма],[Отметка о выполнении]) VALUES (5,10,#2/20/2024#,#3/10/2024#,41000,True)"
 
-    ' ---------- QUERIES ----------
-    db.CreateQueryDef "Phones1", "SELECT LastName, FirstName, Phone FROM Employees"
-    db.CreateQueryDef "ClientAddresses2", "SELECT CompanyName, Address, Phone FROM Clients ORDER BY CompanyName"
-    db.CreateQueryDef "Birthdays3", "SELECT LastName, FirstName, Birthday FROM Employees"
-    db.CreateQueryDef "EmployeeBirthdays4", "SELECT LastName, FirstName, Birthday FROM Employees"
-    db.CreateQueryDef "BirthdaysByMonth5", "SELECT LastName, FirstName, Birthday FROM Employees WHERE Birthday LIKE [Enter date]"
-    db.CreateQueryDef "PhoneList6", "SELECT LastName, FirstName, Phone FROM Employees WHERE LastName=[Enter last name]"
+    ' ---------- ЗАПРОСЫ ----------
+    db.CreateQueryDef "Телефоны1", "SELECT Фамилия, Имя, Телефон FROM Сотрудники"
+    db.CreateQueryDef "Адреса клиентов2", "SELECT [Название компании], Адрес, Телефон FROM Клиенты ORDER BY [Название компании]"
+    db.CreateQueryDef "Дни рождения3", "SELECT Фамилия, Имя, [Дата рождения] FROM Сотрудники"
+    db.CreateQueryDef "Дни рождения сотрудников4", "SELECT Фамилия, Имя, [Дата рождения] FROM Сотрудники"
+    db.CreateQueryDef "Дни рождения по месяцам5", "SELECT Фамилия, Имя, [Дата рождения] FROM Сотрудники WHERE [Дата рождения] LIKE [Введите дату]"
+    db.CreateQueryDef "Список телефонов6", "SELECT Фамилия, Имя, Телефон FROM Сотрудники WHERE Фамилия=[Введите фамилию]"
 
-    db.CreateQueryDef "CompletedOrders7", _
-        "SELECT Employees.LastName, Employees.FirstName, Clients.CompanyName, " & _
-        "Orders.Completed, Orders.Amount, [Amount]*0.13 AS Tax, " & _
-        "[Amount]-[Amount]*0.13 AS Profit " & _
-        "FROM (Employees INNER JOIN Orders ON Employees.EmployeeID=Orders.EmployeeID) " & _
-        "INNER JOIN Clients ON Clients.ClientID=Orders.ClientID WHERE Orders.Completed=True"
+    db.CreateQueryDef "Выполненные заказы7", _
+        "SELECT Сотрудники.Фамилия, Сотрудники.Имя, Клиенты.[Название компании], " & _
+        "Заказы.[Отметка о выполнении], Заказы.Сумма, [Сумма]*0.13 AS Налог, " & _
+        "[Сумма]-[Сумма]*0.13 AS Прибыль " & _
+        "FROM (Сотрудники INNER JOIN Заказы ON Сотрудники.[Код сотрудника]=Заказы.[Код сотрудника]) " & _
+        "INNER JOIN Клиенты ON Клиенты.[Код клиента]=Заказы.[Код клиента] " & _
+        "WHERE Заказы.[Отметка о выполнении]=True"
 
-    db.CreateQueryDef "AmountOver8", _
-        "SELECT Clients.CompanyName, Orders.Amount, Employees.LastName, Employees.FirstName, " & _
-        "Orders.OrderDate, Orders.DueDate " & _
-        "FROM (Employees INNER JOIN Orders ON Employees.EmployeeID=Orders.EmployeeID) " & _
-        "INNER JOIN Clients ON Clients.ClientID=Orders.ClientID WHERE Orders.Amount>50000"
+    db.CreateQueryDef "Сумма заказа более8", _
+        "SELECT Клиенты.[Название компании], Заказы.Сумма, Сотрудники.Фамилия, Сотрудники.Имя, " & _
+        "Заказы.[Дата размещения], Заказы.[Дата исполнения] " & _
+        "FROM (Сотрудники INNER JOIN Заказы ON Сотрудники.[Код сотрудника]=Заказы.[Код сотрудника]) " & _
+        "INNER JOIN Клиенты ON Клиенты.[Код клиента]=Заказы.[Код клиента] WHERE Заказы.Сумма>50000"
 
-    db.CreateQueryDef "AmountInRange9", _
-        "SELECT Clients.CompanyName, Orders.Amount, Employees.LastName, Employees.FirstName, " & _
-        "Orders.OrderDate, Orders.DueDate " & _
-        "FROM (Employees INNER JOIN Orders ON Employees.EmployeeID=Orders.EmployeeID) " & _
-        "INNER JOIN Clients ON Clients.ClientID=Orders.ClientID " & _
-        "WHERE Orders.Amount BETWEEN 20000 AND 50000"
+    db.CreateQueryDef "Сумма заказа в пределе9", _
+        "SELECT Клиенты.[Название компании], Заказы.Сумма, Сотрудники.Фамилия, Сотрудники.Имя, " & _
+        "Заказы.[Дата размещения], Заказы.[Дата исполнения] " & _
+        "FROM (Сотрудники INNER JOIN Заказы ON Сотрудники.[Код сотрудника]=Заказы.[Код сотрудника]) " & _
+        "INNER JOIN Клиенты ON Клиенты.[Код клиента]=Заказы.[Код клиента] " & _
+        "WHERE Заказы.Сумма BETWEEN 20000 AND 50000"
 
-    db.CreateQueryDef "Managers10", "SELECT LastName, FirstName, Position FROM Employees WHERE Position='Manager'"
+    db.CreateQueryDef "Менеджеры10", "SELECT Фамилия, Имя, Должность FROM Сотрудники WHERE Должность='менеджер'"
 
-    MsgBox "ALL DONE!", vbInformation
+    MsgBox "ГОТОВО! Все таблицы, данные и запросы созданы.", vbInformation
 End Sub
 
-Private Sub SetFieldLookup(db As DAO.Database, strTable As String, strField As String, strRowSource As String)
+Private Sub УстановитьПодстановку(db As DAO.Database, strTable As String, strField As String, strRowSource As String)
     Dim fld As DAO.Field
     Set fld = db.TableDefs(strTable).Fields(strField)
     On Error Resume Next
